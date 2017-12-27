@@ -1,0 +1,46 @@
+standard:
+  experiment:
+    model_file: examples/output/<EXP>.mod
+    hyp_file: examples/output/<EXP>.hyp
+    out_file: examples/output/<EXP>.out
+    err_file: examples/output/<EXP>.err
+    cfg_file: examples/output/<EXP>.yaml
+    eval_metrics: token_accuracy
+  train: !SimpleTrainingRegimen
+    run_for_epochs: 100
+    batcher: !WordSrcBatcher
+      avg_batch_size: 32
+    glob:
+      dropout: 0.1
+      default_layer_dim: 512
+    restart_trainer: True
+    trainer: !AdamTrainer
+      alpha: 0.0002
+    lr_decay: 0.5
+    dev_metrics: bleu
+    corpus_parser: !BilingualCorpusParser
+      src_reader: !PlainTextReader {}
+      trg_reader: !PlainTextReader {}
+      training_corpus: !BilingualTrainingCorpus
+        train_src: data/ud/en-ud.train.corpus
+        train_trg: data/ud/en-ud.train.gold
+        dev_src: data/ud/en-ud.dev.corpus
+        dev_trg: data/ud/en-ud.dev.gold
+    model: !DefaultTranslator
+      src_embedder: !SimpleWordEmbedder {}
+      encoder: !BiLSTMSeqTransducer
+        layers: 1
+      attender: !MlpAttender {}
+      trg_embedder: !SimpleWordEmbedder {}
+      decoder: !MlpSoftmaxDecoder
+        layers: 1
+        mlp_hidden_dim: 512
+        bridge: !CopyBridge {}
+        label_smoothing: 0.1
+  inference: !SimpleInference
+    max_len: exact
+    len_norm_type: !PolynomialNormalization
+      apply_during_search: true
+    src_file: data/ud/en-ud.dev.corpus
+  evaluate:
+    ref_file: data/ud/en-ud.dev.gold

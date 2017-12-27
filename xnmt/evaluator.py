@@ -90,6 +90,16 @@ class CERScore(WERScore):
   def metric_name(self): return "CER"
   def value(self): return self.cer
 
+class TokenAccScore(EvalScore):
+  def __init__(self, acc, length):
+    self.acc = acc
+    self.length = length
+  def value(self): return self.acc
+  def metric_name(self): return 'TokenAcc'
+  def higher_is_better(self): return True
+  def score_str(self):
+    return "{:.6f}".format(self.value())
+
 class RecallScore(WERScore):
   def __init__(self, recall, hyp_len, ref_len, nbest=5):
     self.recall  = recall
@@ -427,6 +437,32 @@ class CEREvaluator(object):
     hyp_char = [list("".join(hyp_sent)) for hyp_sent in hyp]
     wer_obj = self.wer_evaluator.evaluate(ref_char, hyp_char)
     return CERScore(wer_obj.value(), wer_obj.hyp_len, wer_obj.ref_len)
+
+class TokenAccEvaluator(object):
+  """
+  A class to evaluate the quality of the output according to a token-level
+  accuracy. For evaluating tagging only, as it assumes that the reference
+  and hypothesis sequences are of identical length.
+  """
+  def evaluate(self, ref, hyp):
+    """
+    :param ref: A list of lists of reference tags
+    :param hyp: A list of lists of decoded tags
+    :return: token accuracy: #correct/totallength
+    """
+    total_count = 0
+    total_correct = 0
+    for ref_sent, hyp_sent in zip(ref,hyp):
+      print(len(ref_sent), len(hyp_sent))
+      print(ref_sent, hyp_sent)
+      #assert len(ref_sent) == len(hyp_sent), "Token-level accuracy requires same-length ref, hyp"
+      total_count += len(ref_sent)
+      total_correct += len(list(filter(lambda i: hyp_sent[i] == ref_sent[i], range(len(ref_sent)))))
+    return TokenAccScore(total_correct/total_count, total_count)
+
+
+
+
 
 class ExternalEvaluator(object):
   """

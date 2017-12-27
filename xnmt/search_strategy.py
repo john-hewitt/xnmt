@@ -10,17 +10,33 @@ class SearchStrategy(object):
   def generate_output(self, decoder, attender, output_embedder, dec_state, src_length=None, forced_trg_ids=None):
     raise NotImplementedError('generate_output must be implemented in SearchStrategy subclasses')
 
+  def continue_generation_criterion(self, word_ids, src_length):
+    if self.exact:
+      if  len(word_ids) > 0:
+        word_ids[-1] = word_ids[-1] if word_ids[-1] != Vocab.ES else 3
+      if len(word_ids) == src_length:
+        word_ids[-1] = Vocab.ES
+      return len(word_ids) != (src_length)
+    else:
+      return (word_ids==[] or word_ids[-1]!=Vocab.ES) and len(word_ids) < self.max_len
+
 class GreedySearch(SearchStrategy):
   '''
   Performs greedy search (aka beam search with beam size 1)
   '''
-  def __init__(self, max_len=100):
-    self.max_len = max_len
+  def __init__(self, max_len=100, min_len=None):
+    if max_len == 'exact':
+      self.exact = True
+      self.max_len = None
+    else:
+      self.exact = False
+      self.max_len = max_len
+
   def generate_output(self, decoder, attender, output_embedder, dec_state, src_length=None, forced_trg_ids=None):
     score = 0.0
     word_ids = []
 
-    while (word_ids==[] or word_ids[-1]!=Vocab.ES) and len(word_ids) < self.max_len:
+    while self.continue_generation_criterion(word_ids, src_length):
       if len(word_ids) > 0: # don't feed in the initial start-of-sentence token
         dec_state = decoder.add_input(dec_state, output_embedder.embed(word_ids[-1] if forced_trg_ids is None else forced_trg_ids[len(word_ids)-1]))
       dec_state.context = attender.calc_context(dec_state.rnn_state.output())

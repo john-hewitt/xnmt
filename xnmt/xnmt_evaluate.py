@@ -3,7 +3,7 @@ import sys
 import io
 import ast
 
-from xnmt.evaluator import BLEUEvaluator, GLEUEvaluator, WEREvaluator, CEREvaluator, RecallEvaluator, ExternalEvaluator, MeanAvgPrecisionEvaluator
+from xnmt.evaluator import BLEUEvaluator, GLEUEvaluator, WEREvaluator, CEREvaluator, RecallEvaluator, ExternalEvaluator, MeanAvgPrecisionEvaluator, TokenAccEvaluator
 from xnmt.options import OptionParser
 from xnmt.inference import NO_DECODING_ATTEMPTED
 
@@ -59,6 +59,8 @@ def xnmt_evaluate(ref_file=None, hyp_file=None, evaluator="bleu"):
     hyp_postprocess = lambda x: ast.literal_eval(x)
     ref_postprocess = lambda x: int(x)
     evaluator = MeanAvgPrecisionEvaluator(nbest=int(nbest))
+  elif eval_type == 'token_accuracy':
+    evaluator = TokenAccEvaluator()
   elif eval_type == 'external':
     path = eval_param.get("path", None)
     higher_better = eval_param.get("higher_better", True)
