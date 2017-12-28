@@ -1,7 +1,9 @@
 import math
 import dynet as dy
+from scipy.stats import norm
 from xnmt.batcher import *
 from xnmt.serializer import *
+
 
 class Attender(object):
   '''
@@ -136,4 +138,55 @@ class GeneralLinearAttender(Attender, Serializable):
   def calc_context(self, state):
     attention = self.calc_attention(state)
     return self.I * attention
+
+class BiasedAttender(Attender, Serializable):
+  '''
+  Interpolates between the distribution specified by any attender,
+  and a decoding timestep-indexed specifiable prior 
+  distribtion (currently only diagonal-normal.)
+  '''
+
+  yaml_tag = u'!BiasedAttender'
+
+  def __init__(self, yaml_context, internal_attender, prior_type='normal', prior_args=None):
+    self.internal_attender = internal_attender
+    self.prior_type = prior_type
+    self.prior_args = prior_args
+    param_collection = yaml_context.dynet_param_collection.param_col
+    self.pLamb = param_collection.add_parameters((1), init=dy.ConstInitializer(10))
+
+  def init_sent(self, sent):
+    self.internal_attender.init_sent(sent)
+    self.generate_index = 0
+    lamb = dy.parameter(self.pLamb)
+    #print(lamb.value())
+    #print("\n\nNEWSENT", len(self.internal_attender.curr_sent))
+
+  def get_attention_bias(self, dec_index, source_length):
+    if self.prior_type == 'normal':
+      return dy.inputVector([norm.cdf(src_index - dec_index + .5) - norm.cdf(src_index - dec_index - .5)
+          for src_index in range(source_length)])
+    else:
+      raise NotImplementedError("Only the 'normal' prior is implemented as of now.")
+
+  def calc_attention(self, state, index=None):
+    internal_attention = self.internal_attender.calc_attention(state)
+    dec_index = index if index else self.generate_index
+    attention_bias = self.get_attention_bias(dec_index, len(self.internal_attender.curr_sent))
+    #print(self.generate_index)
+    #print(attention_bias.dim())
+    #print((10*attention_bias).value())
+    #print(dy.transpose(internal_attention).dim())
+    #print(dy.transpose(internal_attention).value())
+    lamb = dy.parameter(self.pLamb)
+    renormalized = dy.softmax((internal_attention) + dy.cmult(lamb, attention_bias))
+    #print(dy.transpose(renormalized).dim())
+    #print(dy.transpose(renormalized).value())
+    #print()
+    self.generate_index += 1
+    return renormalized
+
+  def calc_context(self, state):
+    attention = self.calc_attention(state)
+    return self.internal_attender.curr_sent.as_tensor() * attention
 

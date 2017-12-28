@@ -1,4 +1,4 @@
-standard:
+old:
   experiment:
     model_file: examples/output/<EXP>.mod
     hyp_file: examples/output/<EXP>.hyp
